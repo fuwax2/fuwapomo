@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ふわポモ — ADHDのためのやさしいタイマー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5F3EF;
+    --card: #FFFFFF;
+    --idle-color: #A8C5DA;
+    --idle-glow: #C8DFF0;
+    --work-color: #7BC4A0;
+    --work-glow: #B2E4CC;
+    --rest-color: #F4A27A;
+    --rest-glow: #FAC9A8;
+    --text-primary: #2D2A26;
+    --text-secondary: #8A8480;
+    --text-light: #B5B0AB;
+    --shadow: 0 8px 32px rgba(45,42,38,0.10);
+    --shadow-sm: 0 2px 12px rgba(45,42,38,0.07);
+    --radius: 28px;
+    --radius-sm: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  /* ── 背景装飾 ── */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -120px; right: -100px;
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, #D8EEF8 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -80px; left: -80px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, #E6F5EE 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app-wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 0 16px 32px;
+  }
+
+  /* ── ヘッダー ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 4px 12px;
+  }
+  .logo {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+  }
+  .logo span { color: var(--idle-color); }
+
+  .today-stats {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border-radius: 999px;
+    padding: 6px 14px;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+  .today-stats .count {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--work-color);
+  }
+  .today-stats .label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .fire { font-size: 1rem; }
+
+  /* ── メインカード ── */
+  .main-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 32px 24px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin-top: 8px;
+    transition: all 0.4s ease;
+  }
+
+  /* ── フェーズラベル ── */
+  .phase-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 24px;
+    transition: all 0.3s ease;
+  }
+  .phase-badge.idle  { background: #EAF4FB; color: #5A9EC2; }
+  .phase-badge.work  { background: #E6F7EE; color: #4DAD7B; }
+  .phase-badge.rest  { background: #FEF3EC; color: #D87744; }
+  .phase-badge.done  { background: #FFFAE6; color: #C4A227; }
+
+  /* ── 円形ゲージ ── */
+  .timer-ring-wrap {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    margin-bottom: 28px;
+  }
+  .timer-ring-wrap svg {
+    position: absolute;
+    top: 0; left: 0;
+    transform: rotate(-90deg);
+    filter: drop-shadow(0 0 12px rgba(168,197,218,0.25));
+    transition: filter 0.4s;
+  }
+  .timer-ring-wrap.work svg { filter: drop-shadow(0 0 14px rgba(123,196,160,0.35)); }
+  .timer-ring-wrap.rest svg { filter: drop-shadow(0 0 14px rgba(244,162,122,0.35)); }
+
+  .ring-bg { fill: none; stroke: #F0EDE8; stroke-width: 12; }
+  .ring-progress {
+    fill: none;
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+                stroke 0.4s ease;
+  }
+
+  .timer-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .time-display {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 3.2rem;
+    line-height: 1;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+    transition: color 0.3s;
+  }
+  .time-label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .pulse-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--work-color);
+    animation: pulse 1.2s ease-in-out infinite;
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .pulse-dot.active { opacity: 1; }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.6); opacity: 1; }
+  }
+
+  /* ── メッセージエリア ── */
+  .message-box {
+    width: 100%;
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .message-text {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-weight: 500;
+    transition: all 0.3s;
+  }
+  .message-text.highlight {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* ── ボタン群 ── */
+  .btn-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    flex: 1;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    transition: all 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    user-select: none;
+    -webkit-user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn:active { transform: scale(0.95); }
+
+  .btn-primary {
+    padding: 18px 20px;
+    font-size: 1.05rem;
+    background: linear-gradient(135deg, #7BC4A0 0%, #5BAE87 100%);
+    color: white;
+    box-shadow: 0 4px 18px rgba(91,174,135,0.35);
+  }
+  .btn-primary:active { box-shadow: 0 2px 8px rgba(91,174,135,0.25); }
+
+  .btn-idle {
+    padding: 18px 20px;
+    font-size: 1.05rem;
+    background: linear-gradient(135deg, #A8C5DA 0%, #7AACCC 100%);
+    color: white;
+    box-shadow: 0 4px 18px rgba(122,172,204,0.35);
+  }
+
+  .btn-secondary {
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    background: #F5F3EF;
+    color: var(--text-secondary);
+    border: 1.5px solid #E8E4DE;
+  }
+  .btn-secondary:active { background: #EAE6E0; }
+
+  .btn-danger {
+    padding: 14px 16px;
+    font-size: 0.9rem;
+    background: #FEF3EC;
+    color: #D87744;
+    border: 1.5px solid #FAD9C0;
+  }
+
+  .btn-rest {
+    padding: 18px 20px;
+    font-size: 1.05rem;
+    background: linear-gradient(135deg, #F4A27A 0%, #E07D4A 100%);
+    color: white;
+    box-shadow: 0 4px 18px rgba(224,125,74,0.3);
+  }
+
+  .btn-1min {
+    padding: 18px 20px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #A8C5DA 0%, #7AACCC 100%);
+    color: white;
+    box-shadow: 0 4px 20px rgba(122,172,204,0.4);
+    letter-spacing: 0.01em;
+  }
+
+  .btn-skip {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    background: transparent;
+    color: var(--text-light);
+    border: 1.5px dashed #D8D4CE;
+  }
+
+  /* ── 完了モーダル風オーバーレイ ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(245,243,239,0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    padding: 24px;
+  }
+  .overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .overlay-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 36px 28px 28px;
+    box-shadow: var(--shadow);
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+    transform: translateY(20px);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .overlay.show .overlay-card { transform: translateY(0); }
+
+  .overlay-emoji {
+    font-size: 3.5rem;
+    line-height: 1;
+    margin-bottom: 16px;
+    display: block;
+    animation: bounceIn 0.5s 0.1s both;
+  }
+  @keyframes bounceIn {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.15); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .overlay-title {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.55rem;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    letter-spacing: -0.02em;
+  }
+  .overlay-msg {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin-bottom: 28px;
+  }
+  .overlay-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── 今日の記録セクション ── */
+  .stats-section {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 20px 20px;
+    margin-top: 14px;
+  }
+  .stats-title {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .stat-item {
+    text-align: center;
+    background: #FAF9F6;
+    border-radius: var(--radius-sm);
+    padding: 12px 8px;
+  }
+  .stat-num {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 900;
+    font-size: 1.6rem;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .stat-item.accent .stat-num { color: var(--work-color); }
+
+  /* ── 実績バー ── */
+  .progress-bar-wrap {
+    margin-top: 14px;
+  }
+  .progress-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 7px;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #F0EDE8;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7BC4A0, #A8C5DA);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── 通知トースト ── */
+  .toast {
+    position: fixed;
+    top: 20px; left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: var(--text-primary);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    z-index: 200;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── セッション中スキップ ── */
+  .skip-area {
+    margin-top: 14px;
+    text-align: center;
+  }
+
+  /* ── フェードトランジション ── */
+  .fade-enter { animation: fadeUp 0.35s both; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── 設定エリア ── */
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 14px;
+    padding: 12px 0 0;
+    border-top: 1px solid #F0EDE8;
+  }
+  .setting-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .setting-item select {
+    background: #F5F3EF;
+    border: 1px solid #E8E4DE;
+    border-radius: 8px;
+    padding: 3px 8px 3px 6px;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+  }
+  .sound-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle-switch {
+    width: 36px; height: 20px;
+    background: #D0CBC4;
+    border-radius: 999px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 14px; height: 14px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle-switch.on { background: var(--work-color); }
+  .toggle-switch.on::after { transform: translateX(16px); }
+</style>
+</head>
+<body>
+
+<div class="app-wrap">
+
+  <!-- ヘッダー -->
+  <div class="header">
+    <div class="logo">ふわ<span>ポモ</span></div>
+    <div class="today-stats" onclick="scrollToStats()">
+      <span class="fire">🔥</span>
+      <span class="count" id="headerCount">0</span>
+      <span class="label">回完了</span>
+    </div>
+  </div>
+
+  <!-- メインカード -->
+  <div class="main-card" id="mainCard">
+    <!-- フェーズバッジ -->
+    <div class="phase-badge idle" id="phaseBadge">
+      <span id="phaseIcon">💤</span>
+      <span id="phaseText">アイドリング</span>
+    </div>
+
+    <!-- 円形タイマー -->
+    <div class="timer-ring-wrap" id="ringWrap">
+      <svg width="220" height="220" viewBox="0 0 220 220">
+        <circle class="ring-bg" cx="110" cy="110" r="96"/>
+        <circle class="ring-progress" id="ringProgress"
+          cx="110" cy="110" r="96"
+          stroke="#A8C5DA"
+          stroke-dasharray="603.19"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="timer-center">
+        <div class="time-display" id="timeDisplay">1:00</div>
+        <div class="time-label" id="timeLabel">残り時間</div>
+        <div class="pulse-dot" id="pulseDot"></div>
+      </div>
+    </div>
+
+    <!-- メッセージ -->
+    <div class="message-box">
+      <div class="message-text" id="messageText">
+        まず<strong>1分だけ</strong>やってみよう。<br>それだけでOK ✨
+      </div>
+    </div>
+
+    <!-- ボタンエリア -->
+    <div class="btn-group" id="btnGroup">
+      <!-- STATE: idle_ready -->
+      <div id="state-idle_ready" class="fade-enter">
+        <button class="btn btn-1min" onclick="startIdle()">⏱ 1分だけやってみる</button>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-secondary" onclick="startWork(25)">25分 作業</button>
+          <button class="btn btn-secondary" onclick="startWork(50)">50分 作業</button>
+        </div>
+      </div>
+      <!-- STATE: idle_running -->
+      <div id="state-idle_running" style="display:none" class="fade-enter">
+        <button class="btn btn-secondary btn-skip" onclick="skipToWork()">▷ もう集中できてる！スキップ</button>
+      </div>
+      <!-- STATE: idle_done -->
+      <div id="state-idle_done" style="display:none" class="fade-enter">
+        <button class="btn btn-primary" onclick="continueWork()" style="font-size:1.1rem">🚀 続行する！</button>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-rest" onclick="startRest()">😮‍💨 少し休憩</button>
+          <button class="btn btn-secondary" onclick="resetToReady()">やり直し</button>
+        </div>
+      </div>
+      <!-- STATE: work_running -->
+      <div id="state-work_running" style="display:none" class="fade-enter">
+        <button class="btn btn-danger" onclick="skipToRest()">💤 疲れたので休憩する</button>
+      </div>
+      <!-- STATE: work_done -->
+      <div id="state-work_done" style="display:none" class="fade-enter">
+        <!-- handled by overlay -->
+      </div>
+      <!-- STATE: rest_running -->
+      <div id="state-rest_running" style="display:none" class="fade-enter">
+        <button class="btn btn-primary" onclick="endRest()">⚡ 準備OK！作業に戻る</button>
+      </div>
+    </div>
+
+    <!-- 設定 -->
+    <div class="settings-row">
+      <div class="setting-item">
+        <span>⏰</span>
+        <span>作業</span>
+        <select id="workDurSelect" onchange="updateWorkDur()">
+          <option value="25" selected>25分</option>
+          <option value="30">30分</option>
+          <option value="45">45分</option>
+          <option value="50">50分</option>
+          <option value="60">60分</option>
+          <option value="90">90分</option>
+        </select>
+      </div>
+      <div class="sound-toggle" onclick="toggleSound()">
+        <span>🔔</span>
+        <div class="toggle-switch on" id="soundToggle"></div>
+        <span class="setting-item" style="cursor:default">通知音</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 今日の記録 -->
+  <div class="stats-section" id="statsSection">
+    <div class="stats-title">📊 今日の記録</div>
+    <div class="stats-grid">
+      <div class="stat-item accent">
+        <div class="stat-num" id="statSessions">0</div>
+        <div class="stat-label">完了セッション</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="statMinutes">0</div>
+        <div class="stat-label">集中した分数</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num" id="statStreak">0</div>
+        <div class="stat-label">連続日数</div>
+      </div>
+    </div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-label">
+        <span>今日の目標</span>
+        <span id="progressLabel">0 / 4 セッション</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /app-wrap -->
+
+<!-- 完了オーバーレイ -->
+<div class="overlay" id="doneOverlay">
+  <div class="overlay-card">
+    <span class="overlay-emoji" id="overlayEmoji">🎉</span>
+    <div class="overlay-title" id="overlayTitle">よくやった！</div>
+    <div class="overlay-msg" id="overlayMsg">1分間、ちゃんとやり切った。<br>それだけで立派なことだよ。</div>
+    <div class="overlay-btns" id="overlayBtns"></div>
+  </div>
+</div>
+
+<!-- トースト通知 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+//  状態管理
+// ══════════════════════════════════════
+const CIRCUMFERENCE = 2 * Math.PI * 96; // 603.19
+
+let state = 'idle_ready';  // idle_ready / idle_running / idle_done / work_running / work_done / rest_running
+let totalSeconds = 60;
+let remainSeconds = 60;
+let workDur = 25;
+let timerInterval = null;
+let soundEnabled = true;
+let sessionStartTime = null;
+
+// LocalStorage キー
+const LS_KEY = 'fuwapomo_';
+const today = () => new Date().toISOString().slice(0, 10);
+
+function loadStats() {
+  const d = today();
+  const raw = localStorage.getItem(LS_KEY + d);
+  return raw ? JSON.parse(raw) : { sessions: 0, minutes: 0 };
+}
+function saveStats(data) {
+  localStorage.setItem(LS_KEY + today(), JSON.stringify(data));
+  // 連続日数
+  updateStreak();
+}
+function addSession(minutes) {
+  const s = loadStats();
+  s.sessions += 1;
+  s.minutes += minutes;
+  saveStats(s);
+  renderStats();
+}
+function updateStreak() {
+  let streak = 0;
+  const d = new Date();
+  for (let i = 0; i < 365; i++) {
+    const key = LS_KEY + d.toISOString().slice(0, 10);
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.sessions > 0) { streak++; d.setDate(d.getDate() - 1); }
+      else break;
+    } else { if (i === 0) { d.setDate(d.getDate() - 1); continue; } break; }
+  }
+  return streak;
+}
+function renderStats() {
+  const s = loadStats();
+  document.getElementById('statSessions').textContent = s.sessions;
+  document.getElementById('statMinutes').textContent = s.minutes;
+  document.getElementById('headerCount').textContent = s.sessions;
+  const goal = 4;
+  const pct = Math.min(100, (s.sessions / goal) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = s.sessions + ' / ' + goal + ' セッション';
+  // streak
+  const streak = updateStreak();
+  document.getElementById('statStreak').textContent = streak;
+}
+
+// ══════════════════════════════════════
+//  タイマーコア
+// ══════════════════════════════════════
+function setTimer(seconds) {
+  totalSeconds = seconds;
+  remainSeconds = seconds;
+  updateRingAndDisplay();
+}
+
+function startTimer(onTick, onDone) {
+  clearTimer();
+  document.getElementById('pulseDot').classList.add('active');
+  timerInterval = setInterval(() => {
+    remainSeconds--;
+    updateRingAndDisplay();
+    if (onTick) onTick(remainSeconds);
+    if (remainSeconds <= 0) {
+      clearTimer();
+      if (onDone) onDone();
+    }
+  }, 1000);
+}
+
+function clearTimer() {
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  document.getElementById('pulseDot').classList.remove('active');
+}
+
+function updateRingAndDisplay() {
+  const pct = remainSeconds / totalSeconds;
+  const offset = CIRCUMFERENCE * (1 - pct);
+  document.getElementById('ringProgress').style.strokeDashoffset = offset;
+  const m = Math.floor(remainSeconds / 60);
+  const s = remainSeconds % 60;
+  document.getElementById('timeDisplay').textContent =
+    m + ':' + String(s).padStart(2, '0');
+}
+
+// ══════════════════════════════════════
+//  フェーズ切り替えUI
+// ══════════════════════════════════════
+const STATES = ['idle_ready','idle_running','idle_done','work_running','work_done','rest_running'];
+
+function switchState(newState) {
+  STATES.forEach(s => {
+    const el = document.getElementById('state-' + s);
+    if (el) el.style.display = 'none';
+  });
+  const el = document.getElementById('state-' + newState);
+  if (el) {
+    el.style.display = 'block';
+    el.classList.remove('fade-enter');
+    void el.offsetWidth;
+    el.classList.add('fade-enter');
+  }
+  state = newState;
+}
+
+function setPhase(phase) {
+  const badge = document.getElementById('phaseBadge');
+  const icon  = document.getElementById('phaseIcon');
+  const text  = document.getElementById('phaseText');
+  const ring  = document.getElementById('ringWrap');
+  const prog  = document.getElementById('ringProgress');
+  badge.className = 'phase-badge ' + phase;
+  ring.className  = 'timer-ring-wrap ' + phase;
+
+  if (phase === 'idle') {
+    icon.textContent = '💤'; text.textContent = 'アイドリング';
+    prog.setAttribute('stroke', '#A8C5DA');
+  } else if (phase === 'work') {
+    icon.textContent = '⚡'; text.textContent = '集中中';
+    prog.setAttribute('stroke', '#7BC4A0');
+  } else if (phase === 'rest') {
+    icon.textContent = '😮‍💨'; text.textContent = '休憩中';
+    prog.setAttribute('stroke', '#F4A27A');
+  } else if (phase === 'done') {
+    icon.textContent = '🌟'; text.textContent = '完了！';
+    prog.setAttribute('stroke', '#F4C542');
+  }
+}
+
+function setMessage(html, highlight = false) {
+  const el = document.getElementById('messageText');
+  el.innerHTML = html;
+  el.className = 'message-text' + (highlight ? ' highlight' : '');
+}
+
+// ══════════════════════════════════════
+//  操作関数
+// ══════════════════════════════════════
+function startIdle() {
+  setPhase('idle');
+  setTimer(60);
+  setMessage('タイマーが動いてる……<br><span style="font-size:0.85em;color:#8A8480">1分経ったら選べるよ</span>');
+  switchState('idle_running');
+  startTimer(null, () => {
+    onIdleDone();
+  });
+}
+
+function onIdleDone() {
+  playBeep('idle');
+  setPhase('done');
+  setMessage('1分やり切った！<br>このまま続ける？😊', true);
+  switchState('idle_done');
+  // ring full
+  document.getElementById('ringProgress').style.strokeDashoffset = '0';
+  document.getElementById('timeDisplay').textContent = '1:00';
+}
+
+function skipToWork() {
+  clearTimer();
+  continueWork();
+}
+
+function continueWork() {
+  const dur = workDur;
+  setPhase('work');
+  setTimer(dur * 60);
+  setMessage('いいね！その調子で ✨<br><span style="font-size:0.85em;color:#8A8480">疲れたらいつでも休憩OK</span>');
+  switchState('work_running');
+  sessionStartTime = Date.now();
+  startTimer(null, () => {
+    onWorkDone(dur);
+  });
+}
+
+function startWork(min) {
+  workDur = min;
+  continueWork();
+}
+
+function onWorkDone(dur) {
+  playBeep('work');
+  const actualMin = dur;
+  addSession(actualMin);
+  setPhase('done');
+  setMessage('');
+  switchState('work_done');
+  showDoneOverlay('work', actualMin);
+}
+
+function skipToRest() {
+  clearTimer();
+  const elapsed = sessionStartTime
+    ? Math.round((Date.now() - sessionStartTime) / 60000)
+    : 0;
+  if (elapsed >= 1) {
+    addSession(elapsed);
+    showToast(`${elapsed}分集中したよ、記録したね 📝`);
+  }
+  startRest();
+}
+
+function startRest() {
+  setPhase('rest');
+  setTimer(5 * 60); // 5分休憩（ユーザーがいつでも終了可能）
+  setMessage('ちゃんと休もう 🌿<br><span style="font-size:0.85em;color:#8A8480">準備できたらボタンを押してね</span>');
+  switchState('rest_running');
+  startTimer(null, () => {
+    // 5分経っても自動では何もしない (ADHDは強制切り替えNG)
+    setMessage('休憩終わり！<br>準備できたらスタートしよう', true);
+    playBeep('rest');
+  });
+}
+
+function endRest() {
+  clearTimer();
+  resetToReady();
+}
+
+function resetToReady() {
+  clearTimer();
+  setPhase('idle');
+  setTimer(60);
+  setMessage('まず<strong>1分だけ</strong>やってみよう。<br>それだけでOK ✨');
+  switchState('idle_ready');
+  document.getElementById('timeDisplay').textContent = '1:00';
+  document.getElementById('ringProgress').style.strokeDashoffset = '0';
+}
+
+function updateWorkDur() {
+  workDur = parseInt(document.getElementById('workDurSelect').value);
+}
+
+// ══════════════════════════════════════
+//  完了オーバーレイ
+// ══════════════════════════════════════
+const PRAISE_IDLE = [
+  { emoji: '🌱', title: 'スタートできた！', msg: '1分やるのが一番難しい。\nそれをやり切ったあなたはすごい！' },
+  { emoji: '✨', title: 'いい感じ！', msg: '動き出せたね。\n1分だって立派な一歩だよ。' },
+];
+const PRAISE_WORK = [
+  { emoji: '🎉', title: 'よくやった！', msg: '集中してくれてありがとう。\n自分を誇っていいよ！' },
+  { emoji: '🏆', title: 'すごすぎる！', msg: 'ちゃんとやり切った。\n今日の自分、最高じゃん？' },
+  { emoji: '💪', title: 'お疲れさま！', msg: 'きちんと頑張ったね。\n休んだらまたやれるよ。' },
+  { emoji: '🌟', title: 'かっこよかった！', msg: 'その集中力、ちゃんと見てたよ。\n本当にお疲れさま！' },
+  { emoji: '🥳', title: 'ナイスファイト！', msg: '動けた日は自分を褒めてあげて。\nまた明日もがんばれそう！' },
+];
+
+function showDoneOverlay(type, minutes) {
+  const pool = type === 'work' ? PRAISE_WORK : PRAISE_IDLE;
+  const p = pool[Math.floor(Math.random() * pool.length)];
+  document.getElementById('overlayEmoji').textContent = p.emoji;
+  document.getElementById('overlayTitle').textContent = p.title;
+  document.getElementById('overlayMsg').textContent = p.msg;
+
+  const btns = document.getElementById('overlayBtns');
+  if (type === 'work') {
+    btns.innerHTML = `
+      <button class="btn btn-primary" onclick="closeDoneAndIdle()">⚡ もう1セット！</button>
+      <button class="btn btn-rest" onclick="closeDoneAndRest()">😮‍💨 少し休憩する</button>
+      <button class="btn btn-secondary" onclick="closeDoneAndReset()">今日はここまで</button>
+    `;
+  } else {
+    btns.innerHTML = `
+      <button class="btn btn-primary" onclick="closeDoneAndContinue()">🚀 続行する！</button>
+      <button class="btn btn-rest" onclick="closeDoneAndRest()">😮‍💨 少し休憩</button>
+    `;
+  }
+  document.getElementById('doneOverlay').classList.add('show');
+}
+
+function closeDoneOverlay() {
+  document.getElementById('doneOverlay').classList.remove('show');
+}
+function closeDoneAndIdle()     { closeDoneOverlay(); resetToReady(); }
+function closeDoneAndRest()     { closeDoneOverlay(); startRest(); }
+function closeDoneAndReset()    { closeDoneOverlay(); resetToReady(); }
+function closeDoneAndContinue() { closeDoneOverlay(); continueWork(); }
+
+// ══════════════════════════════════════
+//  音
+// ══════════════════════════════════════
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playBeep(type) {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudio();
+    const freqs = type === 'work' ? [523, 659, 784] : type === 'idle' ? [440, 523] : [330, 392];
+    freqs.forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0, ctx.currentTime + i * 0.18);
+      g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.05);
+      g.gain.linearRampToValueAtTime(0, ctx.currentTime + i * 0.18 + 0.35);
+      o.start(ctx.currentTime + i * 0.18);
+      o.stop(ctx.currentTime + i * 0.18 + 0.4);
+    });
+  } catch(e) {}
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('soundToggle').className =
+    'toggle-switch' + (soundEnabled ? ' on' : '');
+}
+
+// ══════════════════════════════════════
+//  トースト
+// ══════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function scrollToStats() {
+  document.getElementById('statsSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ══════════════════════════════════════
+//  初期化
+// ══════════════════════════════════════
+renderStats();
+setTimer(60);
+
+// AudioContext はユーザーインタラクション後に有効化
+document.addEventListener('click', () => {
+  try { getAudio().resume(); } catch(e) {}
+}, { once: true });
+</script>
+</body>
+</html>
